@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">MyPay BD</string>
+    <string name="accessibility_desc">Scans bKash, Nagad, Rocket, and Upay app statement screens when carrier SMS is delayed.</string>
+</resources>

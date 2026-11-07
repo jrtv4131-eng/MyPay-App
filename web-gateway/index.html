@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MyPay BD — Non-Custodial Personal Payment Automation Gateway</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', 'Hind Siliguri', sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+    }
+    .scrollbar-thin::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-track {
+      background: #1e293b;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 9999px;
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.9); opacity: 0.8; }
+      70% { transform: scale(1.35); opacity: 0; }
+      100% { transform: scale(1.35); opacity: 0; }
+    }
+    .ws-pulse::before {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 9999px;
+      background-color: #22c55e;
+      animation: pulse-ring 2s infinite;
+    }
+    @media print {
+      body {
+        background: #ffffff !important;
+        color: #0f172a !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      #print-invoice-area {
+        display: block !important;
+        box-shadow: none !important;
+        border: 2px solid #cbd5e1 !important;
+        margin: 0 !important;
+        max-width: 100% !important;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-emerald-500 selection:text-white">
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none no-print"></div>
+
+  <!-- Top Navigation Header -->
+  <header class="sticky top-0 z-40 bg-slate-900/95 backdrop-blur border-b border-slate-800 no-print">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <!-- Brand Logo & Live Status -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 via-pink-600 to-amber-500 flex items-center justify-center shadow-lg shadow-pink-500/20 font-extrabold text-white text-lg">
+          PG
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-base sm:text-lg tracking-tight text-white">MyPay BD</span>
+            <span class="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              Non-Custodial v2.4
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">Laravel 11 + Reverb WebSocket + Redis + Kotlin Dual Reader</p>
+        </div>
+      </div>
+
+      <!-- Main Navigation Tabs -->
+      <nav class="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700/70 overflow-x-auto max-w-full">
+        <button id="nav-checkout" onclick="switchMainTab('checkout')" class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap bg-pink-600 text-white shadow">
+          💳 Live Checkout
+        </button>
+        <button id="nav-invoice" onclick="switchMainTab('invoice')" class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap text-slate-300 hover:text-white">
+          🧾 Auto Invoice &amp; PDF
+        </button>
+        <button id="nav-admin" onclick="switchMainTab('admin')" class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap text-slate-300 hover:text-white">
+          ⚡ Admin &amp; 200-Load
+        </button>
+        <button id="nav-code" onclick="switchMainTab('code')" class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap text-slate-300 hover:text-white">
+          💻 Full Source Code
+        </button>
+      </nav>
+
+      <!-- Live WebSocket & Language Status -->
+      <div class="flex items-center gap-2">
+        <div class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-xs">
+          <span class="relative flex h-2.5 w-2.5 ws-pulse">
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </span>
+          <span class="text-slate-300 font-medium">Reverb WS:</span>
+          <span id="header-ping" class="text-emerald-400 font-bold">9ms</span>
+          <span class="text-slate-600">|</span>
+          <span class="text-slate-300">📱 94%</span>
+        </div>
+        <button id="lang-toggle-btn" onclick="toggleLanguage()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-amber-300 transition">
+          বাংলা / EN
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+
+    <!-- =================================================================== -->
+    <!-- TAB 1: LIVE BANGLADESHI CHECKOUT PAGE + ANDROID SIMULATOR           -->
+    <!-- =================================================================== -->
+    <section id="tab-checkout" class="space-y-6">
+
+      <!-- Quick Scenario Banner -->
+      <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-slate-700/80 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+        <div class="space-y-0.5">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/30">Live Interactive Demo</span>
+            <h1 class="text-sm sm:text-base font-bold text-white">ZiniPay / UddoktaPay Style Non-Custodial Checkout + 4-Layer Auto Verification</h1>
+          </div>
+          <p class="text-xs text-slate-400">
+            Test real-time 0.4s WebSocket verification, SMS delay Statement Auto-Scanner, Double-TrxID security lock, and Optional Card switch.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="flex items-center gap-2 text-xs bg-slate-950/70 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">
+            <input id="quick-card-toggle" type="checkbox" checked onchange="toggleCardSystem(this.checked)" class="rounded text-pink-600 focus:ring-0" />
+            <span class="text-slate-200 font-medium">Card Option (Visa/Mastercard)</span>
+          </label>
+          <select id="demo-amount-select" onchange="changeOrderAmount(this.value)" class="bg-slate-950 text-xs text-white font-semibold px-3 py-1.5 rounded-lg border border-slate-700">
+            <option value="500">Order Amount: ৳ 500.00</option>
+            <option value="1250" selected>Order Amount: ৳ 1,250.00</option>
+            <option value="2500">Order Amount: ৳ 2,500.00</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 2-Column Layout: Left = Authentic Bangladeshi Checkout Widget, Right = Android App & Security Simulator -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <!-- LEFT COLUMN: AUTHENTIC BANGLADESHI PAYMENT GATEWAY CHECKOUT CARD (7 Cols) -->
+        <div class="lg:col-span-7 bg-white text-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
+
+          <!-- Checkout Top Merchant Bar -->
+          <div id="checkout-header-bar" class="bg-gradient-to-r from-[#E2136E] to-[#b80d57] text-white p-5 transition-colors duration-300">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-white/95 text-slate-900 flex items-center justify-center font-extrabold text-xl shadow-md">
+                  <span id="provider-logo-short" class="text-[#E2136E]">bK</span>
+                </div>
+                <div>
+                  <div class="flex items-center gap-1.5">
+                    <h2 class="font-bold text-base sm:text-lg leading-tight">TechBazar BD Gateway</h2>
+                    <svg class="w-4 h-4 text-emerald-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                  </div>
+                  <p class="text-xs text-white/85">Invoice: <span id="checkout-invoice-id" class="font-mono font-semibold">INV-2026-8841</span> • Instant Auto-Verify</p>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="text-[11px] uppercase tracking-wider text-white/80 font-medium">Total Payable</div>
+                <div class="text-2xl sm:text-3xl font-extrabold tracking-tight">৳ <span id="checkout-amount-display">1,250.00</span></div>
+              </div>
+            </div>
+
+            <!-- Live Connection Strip inside Checkout -->
+            <div class="mt-4 pt-3 border-t border-white/20 flex items-center justify-between text-xs">
+              <div class="flex items-center gap-1.5">
+                <span class="inline-block w-2 h-2 rounded-full bg-emerald-300 animate-ping"></span>
+                <span id="checkout-ws-label">WebSocket Direct Tunnel Active (0.4s Auto-Match)</span>
+              </div>
+              <div class="font-mono font-semibold bg-black/20 px-2.5 py-0.5 rounded-full">
+                ⏳ <span id="checkout-timer">14:52</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Method Selection Tabs (bKash, Nagad, Rocket, Upay, Optional Card) -->
+          <div class="p-4 sm:p-6 bg-slate-50 border-b border-slate-200">
+            <div class="flex items-center justify-between mb-2.5">
+              <span id="lbl-select-method" class="text-xs font-bold uppercase tracking-wider text-slate-500">
+                পেমেন্ট মেথড সিলেক্ট করুন (Select Payment Method)
+              </span>
+              <span class="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                Multi-SIM Load Balanced
+              </span>
+            </div>
+
+            <div id="method-tabs-grid" class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <!-- bKash -->
+              <button type="button" onclick="selectPaymentMethod('bkash')" id="tab-btn-bkash" class="method-tab-btn flex flex-col items-center justify-center p-2.5 rounded-xl border-2 border-[#E2136E] bg-pink-50/70 transition shadow-sm">
+                <span class="text-xs font-extrabold text-[#E2136E]">bKash</span>
+                <span class="text-[10px] text-slate-500 font-medium">বিকাশ পার্সোনাল</span>
+              </button>
+              <!-- Nagad -->
+              <button type="button" onclick="selectPaymentMethod('nagad')" id="tab-btn-nagad" class="method-tab-btn flex flex-col items-center justify-center p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-orange-400 transition">
+                <span class="text-xs font-extrabold text-[#F7941D]">Nagad</span>
+                <span class="text-[10px] text-slate-500 font-medium">নগদ পার্সোনাল</span>
+              </button>
+              <!-- Rocket -->
+              <button type="button" onclick="selectPaymentMethod('rocket')" id="tab-btn-rocket" class="method-tab-btn flex flex-col items-center justify-center p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-purple-500 transition">
+                <span class="text-xs font-extrabold text-[#8C3494]">Rocket</span>
+                <span class="text-[10px] text-slate-500 font-medium">রকেট পার্সোনাল</span>
+              </button>
+              <!-- Upay -->
+              <button type="button" onclick="selectPaymentMethod('upay')" id="tab-btn-upay" class="method-tab-btn flex flex-col items-center justify-center p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-sky-600 transition">
+                <span class="text-xs font-extrabold text-[#00529B]">Upay</span>
+                <span class="text-[10px] text-slate-500 font-medium">উপায় পার্সোনাল</span>
+              </button>
+              <!-- Card (Optional) -->
+              <button type="button" onclick="selectPaymentMethod('card')" id="tab-btn-card" class="method-tab-btn flex flex-col items-center justify-center p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-indigo-500 transition">
+                <span class="text-xs font-extrabold text-indigo-600">Card</span>
+                <span class="text-[10px] text-slate-500 font-medium">Visa / Master</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Mobile Banking Body (bKash / Nagad / Rocket / Upay) -->
+          <div id="mfs-checkout-body" class="p-5 sm:p-6 space-y-5">
+
+            <!-- Active Receiver SIM Card Box -->
+            <div class="bg-slate-900 text-white rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-inner">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span id="active-sim-badge" class="text-[11px] font-bold uppercase px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/30">
+                    bKash Send Money (Personal)
+                  </span>
+                  <span id="active-sim-slot-label" class="text-[11px] text-slate-400">SIM Slot #1 (Low Load)</span>
+                </div>
+                <div class="mt-1 flex items-center gap-2">
+                  <span id="active-merchant-number" class="text-xl sm:text-2xl font-mono font-extrabold tracking-wider text-emerald-400">01711-889900</span>
+                </div>
+                <p id="lbl-copy-hint" class="text-[11px] text-slate-400 mt-0.5">এই নাম্বারে নিচের নির্দেশনা অনুযায়ী Send Money করুন</p>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button type="button" onclick="copyMerchantNumber()" class="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow transition">
+                  <span>📋 Copy Number</span>
+                </button>
+                <button type="button" onclick="rotateSimLoadBalance()" title="Test Multi-SIM Rotation" class="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition">
+                  🔄 Rotate SIM
+                </button>
+                <button type="button" onclick="toggleQrPreview()" class="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition">
+                  🏁 QR
+                </button>
+              </div>
+            </div>
+
+            <!-- Collapsible QR Code Box -->
+            <div id="checkout-qr-box" class="hidden bg-slate-100 border border-slate-200 rounded-2xl p-4 text-center">
+              <p class="text-xs font-bold text-slate-700 mb-2">Scan from <span id="qr-provider-name">bKash</span> App to Send Money Automatically</p>
+              <div class="w-36 h-36 mx-auto bg-white p-2 rounded-xl border border-slate-300 flex items-center justify-center">
+                <!-- Clean SVG QR representation -->
+                <svg viewBox="0 0 100 100" class="w-full h-full text-slate-900" fill="currentColor">
+                  <rect x="5" y="5" width="25" height="25" fill="none" stroke="currentColor" stroke-width="6"/>
+                  <rect x="12" y="12" width="11" height="11"/>
+                  <rect x="70" y="5" width="25" height="25" fill="none" stroke="currentColor" stroke-width="6"/>
+                  <rect x="77" y="12" width="11" height="11"/>
+                  <rect x="5" y="70" width="25" height="25" fill="none" stroke="currentColor" stroke-width="6"/>
+                  <rect x="12" y="77" width="11" height="11"/>
+                  <rect x="40" y="10" width="8" height="8"/><rect x="52" y="10" width="8" height="16"/>
+                  <rect x="40" y="26" width="8" height="12"/><rect x="10" y="42" width="14" height="8"/>
+                  <rect x="32" y="42" width="20" height="8"/><rect x="60" y="38" width="10" height="14"/>
+                  <rect x="78" y="42" width="14" height="8"/><rect x="40" y="58" width="12" height="12"/>
+                  <rect x="58" y="62" width="16" height="8"/><rect x="40" y="78" width="8" height="14"/>
+                  <rect x="56" y="76" width="12" height="16"/><rect x="76" y="68" width="16" height="22"/>
+                </svg>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-2">Receiver: <span id="qr-number-text" class="font-mono font-bold">01711-889900</span> • Amount: ৳ <span id="qr-amount-text">1,250.00</span></p>
+            </div>
+
+            <!-- Step-by-Step Instructions -->
+            <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2 text-xs text-slate-700">
+              <div class="font-bold text-slate-900 flex items-center justify-between">
+                <span id="inst-title">কিভাবে পেমেন্ট করবেন (How to Pay):</span>
+                <span id="inst-ussd" class="font-mono text-[11px] bg-pink-100 text-pink-800 px-2 py-0.5 rounded font-bold">Dial *247# or Open bKash App</span>
+              </div>
+              <ol id="inst-list" class="list-decimal list-inside space-y-1.5 text-slate-600 leading-relaxed">
+                <li>আপনার <strong>bKash App</strong> এ যান অথবা <strong>*247#</strong> ডায়াল করে <strong>Send Money</strong> সিলেক্ট করুন।</li>
+                <li>উপরে দেওয়া নাম্বারটি (<strong class="font-mono text-slate-900" id="inst-num-inline">01711-889900</strong>) কপি করে প্রাপক নাম্বার হিসেবে দিন।</li>
+                <li>টাকার পরিমাণ <strong class="text-slate-900">৳ <span id="inst-amt-inline">1,250.00</span></strong> লিখে আপনার পিন দিয়ে পেমেন্ট সম্পন্ন করুন।</li>
+                <li>পেমেন্ট শেষে প্রাপ্ত মেসেজ বা অ্যাপ থেকে <strong>Transaction ID (TrxID)</strong> নিচের বক্সে লিখে <strong>Verify Payment</strong> বাটনে ক্লিক করুন।</li>
+              </ol>
+            </div>
+
+            <!-- TrxID Input Form -->
+            <div class="space-y-3 pt-1">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label for="input-sender-phone" class="block text-xs font-bold text-slate-700 mb-1">
+                    আপনার নাম্বার (Sender Number - Optional)
+                  </label>
+                  <input id="input-sender-phone" type="text" value="01812345678" placeholder="01XXXXXXXXX"
+                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono focus:outline-none focus:border-pink-600 bg-white text-slate-900" />
+                </div>
+                <div>
+                  <label for="input-trx-id" class="block text-xs font-bold text-slate-700 mb-1">
+                    ট্রানজেকশন আইডি (Transaction ID / TrxID) <span class="text-rose-600">*</span>
+                  </label>
+                  <input id="input-trx-id" type="text" placeholder="যেমন: BK98M45X2P"
+                    class="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 text-sm font-mono font-bold uppercase tracking-wider focus:outline-none focus:border-pink-600 bg-white text-slate-900" />
+                </div>
+              </div>
+
+              <!-- Live Verification Status Feedback Box -->
+              <div id="checkout-status-box" class="hidden rounded-xl p-3.5 text-xs font-medium border"></div>
+
+              <!-- Submit Verify Button -->
+              <button id="btn-verify-submit" type="button" onclick="submitCheckoutVerification()"
+                class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#E2136E] to-[#c20e5d] hover:opacity-95 text-white font-extrabold text-sm sm:text-base shadow-lg shadow-pink-600/25 transition flex items-center justify-center gap-2">
+                <span>⚡ VERIFY PAYMENT NOW (পেমেন্ট ভেরিফাই করুন)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Optional Card Payment Body (Hidden unless Card tab selected) -->
+          <div id="card-checkout-body" class="hidden p-5 sm:p-6 space-y-4">
+            <div class="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <span class="text-[11px] font-bold uppercase text-indigo-700">3D Secure Card Checkout</span>
+                <h3 class="text-sm font-bold text-slate-900">Visa, Mastercard, DBBL Nexus &amp; AMEX</h3>
+              </div>
+              <div class="flex gap-1.5 text-xs font-extrabold">
+                <span class="px-2 py-1 rounded bg-blue-700 text-white">VISA</span>
+                <span class="px-2 py-1 rounded bg-amber-600 text-white">MC</span>
+              </div>
+            </div>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Card Number</label>
+                <input id="card-num-input" type="text" value="4532 •••• •••• 8891" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono bg-white text-slate-900" />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Expiry Date</label>
+                  <input id="card-exp-input" type="text" value="08/29" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono bg-white text-slate-900" />
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">CVC / CVV</label>
+                  <input id="card-cvv-input" type="password" value="884" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono bg-white text-slate-900" />
+                </div>
+              </div>
+              <button type="button" onclick="simulateCardInstantPayment()" class="w-full py-3.5 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm shadow-lg transition">
+                🔒 Pay ৳ <span id="card-btn-amt">1,250.00</span> via Card &amp; Generate Invoice
+              </button>
+            </div>
+          </div>
+
+          <!-- Footer Security Note -->
+          <div class="px-6 py-3 bg-slate-100 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+            <span>🔒 3-Layer Anti-Double-Spend Lock (Redis Atomic + MySQL UNIQUE)</span>
+            <span>⚡ Powered by MyPay BD Self-Hosted Engine</span>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN: LIVE ANDROID PHONE SIMULATOR & 4-LAYER TESTER (5 Cols) -->
+        <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold">
+                📱
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-white">Android Companion App Simulator</h3>
+                <p class="text-[11px] text-slate-400">Kotlin Foreground Service • OkHttp WebSocket</p>
+              </div>
+            </div>
+            <span class="text-[11px] font-mono px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              ONLINE • 24/7
+            </span>
+          </div>
+
+          <!-- 4 Interactive Scenarios to Test Every Requirement -->
+          <div class="space-y-2.5">
+            <p class="text-xs font-semibold text-slate-300">
+              Test All 4 Verification &amp; Security Scenarios (Click any button below):
+            </p>
+
+            <!-- Scenario 1: Instant Push Notification + SMS (0.4s Auto Verify) -->
+            <button type="button" onclick="simulateIncomingPhonePayment('instant')"
+              class="w-full text-left p-3 rounded-2xl bg-gradient-to-r from-emerald-500/20 to-teal-500/10 hover:from-emerald-500/30 border border-emerald-500/40 transition group">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-emerald-300 group-hover:text-emerald-200">
+                  1️⃣ Simulate Instant Push Notification / SMS (0.4s Auto-Verify)
+                </span>
+                <span class="text-[10px] font-mono bg-emerald-500 text-slate-950 font-bold px-2 py-0.5 rounded">0.4s LIVE</span>
+              </div>
+              <p class="text-[11px] text-slate-300 mt-1">
+                Fires an official <span id="sim-btn-provider-label" class="font-bold text-white">bKash</span> notification &amp; SMS to the Android app, extracts TrxID via Regex, pushes over WebSocket, and auto-verifies payment!
+              </p>
+            </button>
+
+            <!-- Scenario 2: SMS Late / Network Issue -> App Statement Auto-Scanner -->
+            <button type="button" onclick="simulateStatementAutoScanner()"
+              class="w-full text-left p-3 rounded-2xl bg-gradient-to-r from-sky-500/20 to-indigo-500/10 hover:from-sky-500/30 border border-sky-500/40 transition group">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-sky-300">
+                  2️⃣ Simulate SMS Late → App Statement Auto-Scanner
+                </span>
+                <span class="text-[10px] font-mono bg-sky-400 text-slate-950 font-bold px-2 py-0.5 rounded">BACKUP SCAN</span>
+              </div>
+              <p class="text-[11px] text-slate-300 mt-1">
+                When SIM SMS is delayed, customer submits TrxID → Server triggers Android Accessibility Service to scan inside the bKash/Nagad Statement inbox &amp; auto-verify!
+              </p>
+            </button>
+
+            <!-- Scenario 3: Double-TrxID Attack (Reuse Already Used TrxID) -->
+            <button type="button" onclick="simulateDoubleSpendAttack()"
+              class="w-full text-left p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 to-orange-500/10 hover:from-amber-500/30 border border-amber-500/40 transition group">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-amber-300">
+                  3️⃣ Test Double-TrxID Security Lock (Reuse Used TrxID)
+                </span>
+                <span class="text-[10px] font-mono bg-amber-400 text-slate-950 font-bold px-2 py-0.5 rounded">3-LAYER LOCK</span>
+              </div>
+              <p class="text-[11px] text-slate-300 mt-1">
+                Tries verifying with an already-used TrxID (<code class="text-amber-200">TRX8811USED</code>). Watch Redis Atomic Lock + MySQL UNIQUE index block the double-spend attempt.
+              </p>
+            </button>
+
+            <!-- Scenario 4: Fake SMS From Personal Number -->
+            <button type="button" onclick="simulateFakeSmsAttack()"
+              class="w-full text-left p-3 rounded-2xl bg-gradient-to-r from-rose-500/20 to-pink-500/10 hover:from-rose-500/30 border border-rose-500/40 transition group">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-rose-300">
+                  4️⃣ Test Fake SMS Attack from Personal Number (017XXXXXXXX)
+                </span>
+                <span class="text-[10px] font-mono bg-rose-500 text-white font-bold px-2 py-0.5 rounded">SENDER LOCK</span>
+              </div>
+              <p class="text-[11px] text-slate-300 mt-1">
+                Sends a fake bKash message from <code class="text-rose-200">+8801700998877</code>. Android App rejects it because Sender ID is not official <code class="text-rose-200">bKash/NAGAD/16216</code>.
+              </p>
+            </button>
+          </div>
+
+          <!-- Latest Parsed SMS / Statement Card inside Phone -->
+          <div class="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 space-y-2">
+            <div class="flex items-center justify-between text-[11px]">
+              <span class="font-bold text-slate-400 uppercase tracking-wider">Regex Extractor &amp; WebSocket Stream</span>
+              <span id="phone-last-source" class="text-emerald-400 font-mono">Ready</span>
+            </div>
+            <div id="phone-raw-sms" class="text-xs font-mono text-slate-300 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 leading-relaxed">
+              "You have received Tk 1250.00 from 01812345678. Fee Tk 0.00. Balance Tk 48,500.00. TrxID BK94M72X1P at 07/11/2026 10:21"
+            </div>
+            <div class="grid grid-cols-3 gap-2 pt-1 text-center">
+              <div class="bg-slate-900 p-2 rounded-lg border border-slate-800">
+                <div class="text-[10px] text-slate-400">Parsed Amount</div>
+                <div id="parsed-amt" class="text-xs font-mono font-bold text-emerald-400">৳ 1,250.00</div>
+              </div>
+              <div class="bg-slate-900 p-2 rounded-lg border border-slate-800">
+                <div class="text-[10px] text-slate-400">Sender Phone</div>
+                <div id="parsed-sender" class="text-xs font-mono font-bold text-sky-400">01812345678</div>
+              </div>
+              <div class="bg-slate-900 p-2 rounded-lg border border-slate-800">
+                <div class="text-[10px] text-slate-400">Extracted TrxID</div>
+                <div id="parsed-trx" class="text-xs font-mono font-bold text-amber-300">BK94M72X1P</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Event Log -->
+          <div class="bg-slate-950 border border-slate-800 rounded-2xl p-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] font-bold text-slate-400 uppercase">Real-Time WebSocket Log</span>
+              <button type="button" onclick="clearWsLog()" class="text-[10px] text-slate-500 hover:text-slate-300">Clear</button>
+            </div>
+            <div id="ws-log-box" class="h-28 overflow-y-auto scrollbar-thin space-y-1 font-mono text-[11px] text-slate-300"></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 2: INSTANT AUTO INVOICE & 1-CLICK PDF DOWNLOAD                  -->
+    <!-- =================================================================== -->
+    <section id="tab-invoice" class="hidden space-y-6">
+      <div class="max-w-3xl mx-auto space-y-4">
+
+        <!-- Action Bar Above Invoice -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 no-print">
+          <div>
+            <h2 class="text-base font-bold text-white">Instant Auto-Generated Payment Invoice</h2>
+            <p class="text-xs text-slate-400">Automatically displayed upon payment verification and downloadable as PDF/HTML.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="window.print()" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 shadow transition">
+              <span>🖨️ Print / Save PDF Invoice</span>
+            </button>
+            <button type="button" onclick="downloadStandaloneInvoiceReceipt()" class="px-4 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs flex items-center gap-1.5 shadow transition">
+              <span>⬇️ Download Receipt File (.html)</span>
+            </button>
+            <button type="button" onclick="startFreshTestOrder()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 transition">
+              <span>🔄 New Test Order</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Printable Official Invoice Receipt Card -->
+        <div id="print-invoice-area" class="bg-white text-slate-900 rounded-3xl p-6 sm:p-10 shadow-2xl border border-slate-200 relative overflow-hidden">
+
+          <!-- Official PAID Stamp Seal -->
+          <div class="absolute top-6 right-6 sm:top-8 sm:right-8 border-4 border-emerald-600 text-emerald-600 px-4 py-1.5 rounded-xl font-black text-lg sm:text-xl tracking-widest uppercase rotate-[-8deg] shadow-sm bg-emerald-50/90">
+            ✓ PAID &amp; VERIFIED
+          </div>
+
+          <!-- Header -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-xl">
+                PG
+              </div>
+              <div>
+                <h1 class="text-xl font-extrabold text-slate-900">TechBazar BD — Official Money Receipt</h1>
+                <p class="text-xs text-slate-500">Verified by MyPay BD Non-Custodial Payment Automation</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Metadata Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 py-6 border-b border-slate-200 text-xs">
+            <div>
+              <div class="text-slate-400 font-medium uppercase">Invoice Number</div>
+              <div id="inv-doc-id" class="font-mono font-bold text-slate-900 text-sm mt-0.5">INV-2026-8841</div>
+            </div>
+            <div>
+              <div class="text-slate-400 font-medium uppercase">Transaction ID (TrxID)</div>
+              <div id="inv-doc-trx" class="font-mono font-extrabold text-emerald-700 text-sm mt-0.5">BK94M72X1P</div>
+            </div>
+            <div>
+              <div class="text-slate-400 font-medium uppercase">Payment Method</div>
+              <div id="inv-doc-method" class="font-bold text-pink-600 text-sm mt-0.5 uppercase">bKash (Personal)</div>
+            </div>
+            <div>
+              <div class="text-slate-400 font-medium uppercase">Paid Date &amp; Time</div>
+              <div id="inv-doc-time" class="font-mono font-semibold text-slate-800 text-sm mt-0.5">2026-11-07 10:21:45</div>
+            </div>
+          </div>
+
+          <!-- Payment & Verification Details Table -->
+          <div class="py-6 space-y-4">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">Transaction Breakdown &amp; Security Audit</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr class="bg-slate-100 text-slate-600 text-xs uppercase">
+                    <th class="py-3 px-4 rounded-l-xl">Description</th>
+                    <th class="py-3 px-4">Sender / Receiver</th>
+                    <th class="py-3 px-4">Verification Engine</th>
+                    <th class="py-3 px-4 text-right rounded-r-xl">Amount (BDT)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                  <tr>
+                    <td class="py-4 px-4 font-semibold text-slate-900">
+                      Order Payment (<span id="inv-doc-order">ORD-2026-8841</span>)
+                      <div class="text-xs text-slate-500 font-normal">Instant Automated Digital Service Delivery</div>
+                    </td>
+                    <td class="py-4 px-4 font-mono text-xs text-slate-700">
+                      From: <span id="inv-doc-sender">01812345678</span><br/>
+                      To SIM: <span id="inv-doc-sim">01711-889900</span>
+                    </td>
+                    <td class="py-4 px-4">
+                      <span id="inv-doc-engine" class="inline-block text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
+                        Push Notification (0.4s)
+                      </span>
+                    </td>
+                    <td class="py-4 px-4 text-right font-mono font-bold text-slate-900">
+                      ৳ <span id="inv-doc-subtotal">1,250.00</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Total Row + QR Verification -->
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t-2 border-slate-900">
+              <div class="flex items-center gap-3">
+                <div class="w-16 h-16 p-1.5 border border-slate-300 rounded-xl flex items-center justify-center bg-white">
+                  <svg viewBox="0 0 100 100" class="w-full h-full text-slate-900" fill="currentColor">
+                    <rect x="5" y="5" width="25" height="25" fill="none" stroke="currentColor" stroke-width="6"/>
+                    <rect x="12" y="12" width="11" height="11"/>
+                    <rect x="70" y="5" width="25" height="25" fill="none" stroke="currentColor" stroke-width="6"/>
+                    <rect x="77" y="12" width="11" height="11"/>
+                    <rect x="5" y="70" width="25" height="25" fill="none" stroke="currentColor" stroke-width="6"/>
+                    <rect x="12" y="77" width="11" height="11"/>
+                    <rect x="40" y="20" width="18" height="18"/><rect x="42" y="48" width="24" height="14"/>
+                    <rect x="72" y="68" width="20" height="20"/>
+                  </svg>
+                </div>
+                <div class="text-xs text-slate-500">
+                  <div class="font-bold text-slate-800">Cryptographic Anti-Double-Spend Lock</div>
+                  <div>TrxID permanently bound to Invoice <span id="inv-doc-lock-id" class="font-mono font-semibold">INV-2026-8841</span></div>
+                  <div>Gateway Fee: <strong>৳ 0.00 (Self-Hosted Personal Gateway)</strong></div>
+                </div>
+              </div>
+              <div class="text-right w-full sm:w-auto">
+                <div class="text-xs uppercase font-bold text-slate-500">Total Paid</div>
+                <div class="text-3xl font-black text-emerald-600">৳ <span id="inv-doc-total">1,250.00</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 3: SMART ADMIN PANEL, MULTI-SIM & 200-USER CONCURRENT STRESS    -->
+    <!-- =================================================================== -->
+    <section id="tab-admin" class="hidden space-y-6">
+
+      <!-- Top KPI Summary Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <div class="text-xs text-slate-400 font-medium">Total Verified Collection</div>
+          <div class="text-2xl font-extrabold text-emerald-400 mt-1">৳ <span id="kpi-total-amount">48,750.00</span></div>
+          <div class="text-[11px] text-slate-500 mt-1">0% Gateway Fee • Direct to Personal SIM</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <div class="text-xs text-slate-400 font-medium">Verified Transactions</div>
+          <div class="text-2xl font-extrabold text-white mt-1"><span id="kpi-verified-count">34</span></div>
+          <div class="text-[11px] text-emerald-400 mt-1">Avg Speed: 0.41s via Reverb WebSocket</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <div class="text-xs text-slate-400 font-medium">Active SIM Numbers (Load Pool)</div>
+          <div class="text-2xl font-extrabold text-sky-400 mt-1"><span id="kpi-sim-count">6</span> SIMs Online</div>
+          <div class="text-[11px] text-slate-400 mt-1">Auto-Rotation across bKash/Nagad/Rocket/Upay</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <div class="text-xs text-slate-400 font-medium">Double-Spend / Fake SMS Blocked</div>
+          <div class="text-2xl font-extrabold text-rose-400 mt-1"><span id="kpi-blocked-count">3</span> Blocked</div>
+          <div class="text-[11px] text-rose-300/80 mt-1">Redis Atomic Lock + UNIQUE TrxID Index</div>
+        </div>
+      </div>
+
+      <!-- 100-200 Concurrent Payment Stress Simulator + Method Switches -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- 200-User High-Concurrency Redis Queue Stress Tester (7 Cols) -->
+        <div class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span class="text-[11px] font-bold uppercase px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                Redis Queue + MySQL Indexing + Multi-SIM
+              </span>
+              <h3 class="text-base font-bold text-white mt-1">100–200 Concurrent Payments Verification Simulator</h3>
+              <p class="text-xs text-slate-400">Tests how the gateway handles 150+ simultaneous TrxID submissions without server jam or double-spend.</p>
+            </div>
+            <button type="button" id="btn-run-stress" onclick="runConcurrentStressTest()"
+              class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-95 text-white font-extrabold text-xs shadow-lg transition">
+              🚀 Simulate 150 Simultaneous Payments
+            </button>
+          </div>
+
+          <!-- Progress & Metrics -->
+          <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div class="flex items-center justify-between text-xs">
+              <span id="stress-status-label" class="font-semibold text-slate-300">Queue Idle — Click button above to test 150 concurrent requests</span>
+              <span id="stress-progress-pct" class="font-mono font-bold text-emerald-400">0 / 150</span>
+            </div>
+            <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+              <div id="stress-progress-bar" class="h-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-all duration-150" style="width: 0%"></div>
+            </div>
+            <div class="grid grid-cols-3 gap-3 pt-1 text-center text-xs">
+              <div class="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                <div class="text-slate-400">Verified in Queue</div>
+                <div id="stress-verified-num" class="text-base font-mono font-extrabold text-emerald-400">0</div>
+              </div>
+              <div class="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                <div class="text-slate-400">Duplicate Clicks Blocked</div>
+                <div id="stress-dupe-num" class="text-base font-mono font-extrabold text-amber-400">0</div>
+              </div>
+              <div class="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                <div class="text-slate-400">Avg Verify Time</div>
+                <div id="stress-latency-num" class="text-base font-mono font-extrabold text-sky-400">0.38s</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Payment Methods & Card Optional Switch Panel (5 Cols) -->
+        <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4">
+          <div>
+            <h3 class="text-base font-bold text-white">Gateway Channels &amp; Card Toggle</h3>
+            <p class="text-xs text-slate-400">Enable/disable Mobile Banking providers or Optional Card checkout in real-time.</p>
+          </div>
+          <div class="space-y-2.5 text-xs">
+            <div class="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
+              <div>
+                <div class="font-bold text-pink-400">bKash (Personal / Agent)</div>
+                <div class="text-slate-400">Push Notification + SMS + Statement Scanner</div>
+              </div>
+              <span class="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 font-bold">ACTIVE</span>
+            </div>
+            <div class="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
+              <div>
+                <div class="font-bold text-amber-400">Nagad (Personal / Agent)</div>
+                <div class="text-slate-400">Push Notification + SMS + Statement Scanner</div>
+              </div>
+              <span class="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 font-bold">ACTIVE</span>
+            </div>
+            <div class="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
+              <div>
+                <div class="font-bold text-purple-400">Rocket &amp; Upay</div>
+                <div class="text-slate-400">16216 &amp; Upay Regex Auto-Verification</div>
+              </div>
+              <span class="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 font-bold">ACTIVE</span>
+            </div>
+            <div class="flex items-center justify-between p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/40">
+              <div>
+                <div class="font-bold text-indigo-300">Card System (Visa / Mastercard) — Optional</div>
+                <div class="text-slate-400">Toggle Card tab visibility on customer Checkout Page</div>
+              </div>
+              <label class="inline-flex items-center cursor-pointer">
+                <input id="admin-card-toggle" type="checkbox" checked onchange="toggleCardSystem(this.checked)" class="h-4 w-4 rounded text-indigo-600" />
+                <span id="admin-card-status-text" class="ml-2 font-bold text-emerald-400">ON</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Multi-SIM Load Balancing Pool + Add SIM Form -->
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 class="text-base font-bold text-white">Multi-SIM Load Balancing Pool (Auto-Rotation)</h3>
+            <p class="text-xs text-slate-400">Distributes incoming payment requests across multiple SIMs so a single SIM never gets jammed.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <select id="new-sim-provider" class="bg-slate-950 text-xs text-white px-3 py-2 rounded-xl border border-slate-700">
+              <option value="bkash">bKash</option>
+              <option value="nagad">Nagad</option>
+              <option value="rocket">Rocket</option>
+              <option value="upay">Upay</option>
+            </select>
+            <input id="new-sim-number" type="text" placeholder="017XX-XXXXXX" class="bg-slate-950 text-xs text-white font-mono px-3 py-2 rounded-xl border border-slate-700 w-36" />
+            <button type="button" onclick="addSimToPool()" class="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs transition">
+              + Add SIM Number
+            </button>
+          </div>
+        </div>
+
+        <div id="sim-pool-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+      </div>
+
+      <!-- Live Transaction Monitor & 1-Click Manual Approve Table -->
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 class="text-base font-bold text-white">Live Transactions &amp; 1-Click Manual Verification</h3>
+            <p class="text-xs text-slate-400">Monitor Push/SMS/Statement verifications or 1-Click Approve any pending order.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="createPendingManualOrder()" class="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold transition">
+              + Simulate Pending Order (Test 1-Click Approve)
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400 uppercase">
+                <th class="py-3 px-3">Invoice ID</th>
+                <th class="py-3 px-3">Method &amp; SIM</th>
+                <th class="py-3 px-3">TrxID</th>
+                <th class="py-3 px-3">Amount</th>
+                <th class="py-3 px-3">Verification Layer</th>
+                <th class="py-3 px-3">Status</th>
+                <th class="py-3 px-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="admin-trx-tbody" class="divide-y divide-slate-800/80"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 4: FULL SOURCE CODE (LARAVEL 11 + REVERB + KOTLIN ANDROID APP)  -->
+    <!-- =================================================================== -->
+    <section id="tab-code" class="hidden space-y-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-white">Complete Production Source Code (Laravel 11 + Reverb + Redis + Kotlin App)</h2>
+            <p class="text-xs text-slate-400">Select any file below to inspect or copy the complete implementation.</p>
+          </div>
+          <button type="button" onclick="copyCurrentCodeFile()" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-extrabold text-xs shadow transition">
+            📋 Copy Current File Code
+          </button>
+        </div>
+
+        <!-- File Selector Buttons -->
+        <div class="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
+          <button type="button" onclick="selectCodeTab('migration')" id="code-btn-migration" class="code-tab-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-pink-600 text-white">
+            1. Database Migration (UNIQUE TrxID)
+          </button>
+          <button type="button" onclick="selectCodeTab('controller')" id="code-btn-controller" class="code-tab-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-300 hover:text-white">
+            2. PaymentGatewayController.php (Redis Lock + PDF)
+          </button>
+          <button type="button" onclick="selectCodeTab('kotlin_sms')" id="code-btn-kotlin_sms" class="code-tab-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-300 hover:text-white">
+            3. Kotlin DualReader.kt (Push + SMS Regex)
+          </button>
+          <button type="button" onclick="selectCodeTab('kotlin_scanner')" id="code-btn-kotlin_scanner" class="code-tab-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-300 hover:text-white">
+            4. Kotlin StatementScanner.kt (Accessibility Fallback)
+          </button>
+          <button type="button" onclick="selectCodeTab('vps')" id="code-btn-vps" class="code-tab-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-300 hover:text-white">
+            5. VPS Setup (Reverb + Redis + Supervisor)
+          </button>
+        </div>
+
+        <!-- Code Viewer Pre -->
+        <div class="relative">
+          <pre id="code-viewer-content" class="bg-slate-950 text-emerald-300 p-4 rounded-2xl border border-slate-800 overflow-x-auto text-xs font-mono leading-relaxed max-h-[540px] scrollbar-thin"></pre>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // =========================================================================
+    // PAYGUARD BD — COMPLETE IN-BROWSER STATE & SIMULATION ENGINE
+    // =========================================================================
+    const state = {
+      lang: 'bn',
+      activeTab: 'checkout',
+      selectedMethod: 'bkash',
+      cardEnabled: true,
+      orderAmount: 1250,
+      invoiceId: 'INV-2026-8841',
+      orderId: 'ORD-2026-8841',
+      countdownSeconds: 892,
+      activeSimIndex: 0,
+      simPool: [
+        { id: 1, provider: 'bkash', type: 'Personal', number: '01711-889900', load: 2, processed: 142 },
+        { id: 2, provider: 'bkash', type: 'Agent', number: '01755-223344', load: 1, processed: 98 },
+        { id: 3, provider: 'nagad', type: 'Personal', number: '01922-334455', load: 1, processed: 115 },
+        { id: 4, provider: 'rocket', type: 'Personal', number: '01833-776655', load: 0, processed: 64 },
+        { id: 5, provider: 'upay', type: 'Personal', number: '01644-998877', load: 0, processed: 41 }
+      ],
+      usedTrxIds: new Set(['TRX8811USED', 'BK94M72X1P', 'NG77K12L9P']),
+      unusedSmsPool: new Map(),
+      transactions: [
+        {
+          invoiceId: 'INV-2026-8841',
+          orderId: 'ORD-2026-8841',
+          method: 'bkash',
+          sim: '01711-889900',
+          sender: '01812345678',
+          trxId: 'BK94M72X1P',
+          amount: 1250,
+          layer: 'Push Notification (0.4s)',
+          status: 'paid',
+          time: '2026-11-07 10:21:45'
+        },
+        {
+          invoiceId: 'INV-2026-8839',
+          orderId: 'ORD-2026-8839',
+          method: 'nagad',
+          sim: '01922-334455',
+          sender: '01911223344',
+          trxId: 'NG77K12L9P',
+          amount: 500,
+          layer: 'Statement Auto-Scanner',
+          status: 'paid',
+          time: '2026-11-07 10:18:12'
+        },
+        {
+          invoiceId: 'INV-2026-8835',
+          orderId: 'ORD-2026-8835',
+          method: 'rocket',
+          sim: '01833-776655',
+          sender: '01799887766',
+          trxId: 'TRX8811USED',
+          amount: 2500,
+          layer: 'SMS Reader (16216)',
+          status: 'paid',
+          time: '2026-11-07 10:11:04'
+        }
+      ],
+      blockedCount: 3,
+      totalRevenue: 48750,
+      verifiedCount: 34,
+      currentCodeKey: 'migration'
+    };
+
+    const providerMeta = {
+      bkash: {
+        name: 'bKash',
+        bnName: 'বিকাশ পার্সোনাল',
+        short: 'bK',
+        headerBg: 'from-[#E2136E] to-[#b80d57]',
+        btnBg: 'from-[#E2136E] to-[#c20e5d]',
+        textColor: 'text-[#E2136E]',
+        ussd: '*247#',
+        senderId: 'bKash'
+      },
+      nagad: {
+        name: 'Nagad',
+        bnName: 'নগদ পার্সোনাল',
+        short: 'NG',
+        headerBg: 'from-[#F7941D] to-[#d97706]',
+        btnBg: 'from-[#F7941D] to-[#ea580c]',
+        textColor: 'text-[#F7941D]',
+        ussd: '*167#',
+        senderId: 'NAGAD'
+      },
+      rocket: {
+        name: 'Rocket',
+        bnName: 'রকেট পার্সোনাল',
+        short: 'RK',
+        headerBg: 'from-[#8C3494] to-[#6b21a8]',
+        btnBg: 'from-[#8C3494] to-[#7e22ce]',
+        textColor: 'text-[#8C3494]',
+        ussd: '*322#',
+        senderId: '16216'
+      },
+      upay: {
+        name: 'Upay',
+        bnName: 'উপায় পার্সোনাল',
+        short: 'UP',
+        headerBg: 'from-[#00529B] to-[#0369a1]',
+        btnBg: 'from-[#00529B] to-[#0284c7]',
+        textColor: 'text-[#00529B]',
+        ussd: '*268#',
+        senderId: 'Upay'
+      }
+    };
+
+    const codeFiles = {
+      migration: `<?php
+// database/migrations/2026_01_01_000000_create_gateway_tables.php
+use Illuminate\\Database\\Migrations\\Migration;
+use Illuminate\\Database\\Schema\\Blueprint;
+use Illuminate\\Support\\Facades\\Schema;
+
+return new class extends Migration {
+    public function up(): void {
+        // 1. Multi-SIM Merchant Numbers (Load Balancing Pool)
+        Schema::create('merchant_numbers', function (Blueprint $table) {
+            $table->id();
+            $table->enum('provider', ['bkash', 'nagad', 'rocket', 'upay'])->index();
+            $table->enum('account_type', ['personal', 'agent'])->default('personal');
+            $table->string('phone_number', 20);
+            $table->boolean('is_active')->default(true)->index();
+            $table->unsignedInteger('active_load')->default(0);
+            $table->timestamps();
+        });
+
+        // 2. Incoming Transactions — STRICT UNIQUE trx_id Lock against Double-Spend
+        Schema::create('incoming_transactions', function (Blueprint $table) {
+            $table->id();
+            $table->enum('provider', ['bkash', 'nagad', 'rocket', 'upay', 'card'])->index();
+            $table->string('trx_id', 64)->unique(); // Layer 1 Lock: Never allows duplicate TrxID
+            $table->decimal('amount', 12, 2)->index();
+            $table->string('sender_number', 25)->nullable();
+            $table->enum('source_type', [
+                'push_notification', 'sms_reader', 'statement_scanner', 'manual_admin', 'card'
+            ])->default('push_notification');
+            $table->enum('status', ['unused', 'used'])->default('unused')->index(); // Layer 2 Lock
+            $table->string('used_by_invoice_id', 64)->nullable()->index();
+            $table->timestamp('verified_at')->nullable();
+            $table->timestamps();
+
+            // Composite index for 200+ concurrent verifications in <5ms
+            $table->index(['trx_id', 'provider', 'status', 'amount'], 'idx_fast_verify');
+        });
+
+        // 3. Customer Invoices (Auto-Invoice & PDF Receipt)
+        Schema::create('payment_invoices', function (Blueprint $table) {
+            $table->id();
+            $table->string('invoice_id', 64)->unique();
+            $table->decimal('amount', 12, 2);
+            $table->string('selected_method', 20)->nullable();
+            $table->string('submitted_trx_id', 64)->nullable()->index();
+            $table->enum('status', ['pending', 'processing_scan', 'paid'])->default('pending');
+            $table->string('verified_via', 40)->nullable();
+            $table->timestamp('paid_at')->nullable();
+            $table->timestamps();
+        });
+    }
+};`,
+      controller: `<?php
+// app/Http/Controllers/PaymentGatewayController.php
+namespace App\\Http\\Controllers;
+
+use Illuminate\\Http\\Request;
+use Illuminate\\Support\\Facades\\DB;
+use Illuminate\\Support\\Facades\\Cache;
+use Barryvdh\\DomPDF\\Facade\\Pdf;
+use App\\Events\\PaymentVerifiedEvent;
+use App\\Events\\RequestStatementScanEvent;
+
+class PaymentGatewayController extends Controller
+{
+    public function verifyPayment(Request $request, string $invoiceId)
+    {
+        $trxId = strtoupper(trim($request->input('trx_id')));
+        $provider = $request->input('provider');
+
+        // LAYER 1: Redis Atomic Lock (blocks simultaneous click attacks across devices)
+        $lock = Cache::lock('verify_trx_lock_' . $trxId, 10);
+        if (! $lock->get()) {
+            return response()->json(['message' => 'Locked: Verification in progress'], 429);
+        }
+
+        try {
+            return DB::transaction(function () use ($invoiceId, $trxId, $provider) {
+                $invoice = DB::table('payment_invoices')
+                    ->where('invoice_id', $invoiceId)->lockForUpdate()->firstOrFail();
+
+                // LAYER 2 & 3: Check if TrxID is already used
+                $trx = DB::table('incoming_transactions')
+                    ->where('trx_id', $trxId)->lockForUpdate()->first();
+
+                if ($trx && $trx->status === 'used') {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => "Transaction ID ($trxId) has already been used!"
+                    ], 422);
+                }
+
+                if ($trx && $trx->status === 'unused' && (float)$trx->amount >= (float)$invoice->amount) {
+                    DB::table('incoming_transactions')->where('id', $trx->id)->update([
+                        'status' => 'used',
+                        'used_by_invoice_id' => $invoice->invoice_id,
+                        'verified_at' => now(),
+                    ]);
+
+                    DB::table('payment_invoices')->where('id', $invoice->id)->update([
+                        'selected_method' => $provider,
+                        'submitted_trx_id' => $trxId,
+                        'status' => 'paid',
+                        'verified_via' => $trx->source_type,
+                        'paid_at' => now(),
+                    ]);
+
+                    broadcast(new PaymentVerifiedEvent($invoice->invoice_id, $trxId, $provider));
+                    return response()->json([
+                        'status' => 'paid',
+                        'pdf_url' => route('gateway.invoice.pdf', $invoice->invoice_id)
+                    ]);
+                }
+
+                // BACKUP PLAN: SMS delayed -> Trigger Android Statement Auto-Scanner over WebSocket
+                DB::table('payment_invoices')->where('id', $invoice->id)->update([
+                    'submitted_trx_id' => $trxId,
+                    'status' => 'processing_scan'
+                ]);
+                broadcast(new RequestStatementScanEvent($invoice->invoice_id, $provider, $trxId, (float)$invoice->amount));
+
+                return response()->json(['status' => 'processing_scan'], 202);
+            });
+        } finally {
+            $lock->release();
+        }
+    }
+
+    public function downloadInvoicePdf(string $invoiceId)
+    {
+        $invoice = DB::table('payment_invoices')->where('invoice_id', $invoiceId)->where('status', 'paid')->firstOrFail();
+        return Pdf::loadView('invoice_pdf', compact('invoice'))->download("Invoice-{$invoice->invoice_id}.pdf");
+    }
+}`,
+      kotlin_sms: `// android-kotlin-app/app/src/main/java/com/payguard/bd/DualPaymentReader.kt
+package com.payguard.bd
+
+object PaymentRegexParser {
+    // Only official Sender IDs are accepted (blocks fake personal SIM SMS attacks)
+    private val OFFICIAL_SENDERS = setOf("BKASH", "NAGAD", "16216", "UPAY")
+    private val AMOUNT_REGEX = Regex("(?:received|Cash-In|Tk|BDT)\\\\s*(?:Tk\\\\.?|BDT)?\\\\s*([0-9,]+(?:\\\\.[0-9]{1,2})?)", RegexOption.IGNORE_CASE)
+    private val TRX_REGEX = Regex("(?:TrxID|TxnId|Trans ID|Txn ID)[:\\\\s]+([A-Z0-9]{6,20})", RegexOption.IGNORE_CASE)
+    private val SENDER_PHONE_REGEX = Regex("(?:from|by|A/C)\\\\s*(01[3-9][0-9]{8})", RegexOption.IGNORE_CASE)
+
+    fun parseSmsOrNotification(sender: String, body: String, isPush: Boolean): Map<String, Any>? {
+        val cleanSender = sender.uppercase().trim()
+        if (!isPush && cleanSender !in OFFICIAL_SENDERS) return null
+
+        val amount = AMOUNT_REGEX.find(body)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull() ?: return null
+        val trxId = TRX_REGEX.find(body)?.groupValues?.get(1)?.uppercase() ?: return null
+        val customerPhone = SENDER_PHONE_REGEX.find(body)?.groupValues?.get(1) ?: "UNKNOWN"
+
+        return mapOf(
+            "trx_id" to trxId,
+            "amount" to amount,
+            "customer_number" to customerPhone,
+            "source_type" to if (isPush) "push_notification" else "sms_reader"
+        )
+    }
+}`,
+      kotlin_scanner: `// android-kotlin-app/app/src/main/java/com/payguard/bd/StatementScannerAccessibilityService.kt
+package com.payguard.bd
+
+import android.accessibilityservice.AccessibilityService
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+
+/**
+ * Layer 3 Backup Verification:
+ * When SIM SMS is delayed due to telecom network congestion, Laravel Reverb broadcasts
+ * RequestStatementScanEvent. This service reads the bKash/Nagad/Rocket/Upay App Statement
+ * screen nodes and immediately verifies the waiting TrxID.
+ */
+class StatementScannerAccessibilityService : AccessibilityService() {
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        val root = rootInActiveWindow ?: return
+        val pkg = event?.packageName?.toString() ?: return
+        traverseStatementNodes(pkg, root)
+    }
+
+    private fun traverseStatementNodes(pkg: String, node: AccessibilityNodeInfo?) {
+        if (node == null) return
+        val text = node.text?.toString() ?: ""
+        if (text.contains("TrxID", ignoreCase = true) || text.contains("Txn", ignoreCase = true)) {
+            PaymentRegexParser.parseSmsOrNotification(pkg, text, isPush = true)?.let { payload ->
+                PayGuardWebSocketClient.sendStatementMatch(payload)
+            }
+        }
+        for (i in 0 until node.childCount) {
+            traverseStatementNodes(pkg, node.getChild(i))
+        }
+    }
+
+    override fun onInterrupt() {}
+}`,
+      vps: `# Ubuntu VPS Setup (Nginx + MySQL + Redis + Laravel Reverb WebSocket)
+sudo apt update && sudo apt install -y nginx mysql-server redis-server supervisor php8.2-fpm php8.2-mysql php8.2-redis
+
+# 1. Install Laravel Dependencies & Reverb WebSocket Server
+composer install --optimize-autoloader --no-dev
+php artisan migrate --force
+php artisan reverb:install
+
+# 2. Supervisor Configuration (/etc/supervisor/conf.d/payguard.conf)
+[program:payguard-reverb]
+command=php /var/www/payguard/artisan reverb:start --host=0.0.0.0 --port=8080
+autostart=true
+autorestart=true
+user=www-data
+
+[program:payguard-redis-workers]
+process_name=%(program_name)s_%(process_num)02d
+command=php /var/www/payguard/artisan queue:work redis --sleep=1 --tries=3
+autostart=true
+autorestart=true
+numprocs=4
+user=www-data`
+    };
+
+    // =========================================================================
+    // UI HELPERS & NAVIGATION
+    // =========================================================================
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const colors = {
+        success: 'bg-emerald-600 border-emerald-400 text-white',
+        error: 'bg-rose-600 border-rose-400 text-white',
+        info: 'bg-sky-600 border-sky-400 text-white',
+        warning: 'bg-amber-500 border-amber-300 text-slate-950'
+      };
+      const el = document.createElement('div');
+      el.className = `pointer-events-auto px-4 py-3 rounded-2xl border shadow-xl text-xs font-bold flex items-center justify-between gap-3 transition-all ${colors[type] || colors.info}`;
+      el.innerHTML = `<span>${message}</span>`;
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 250);
+      }, 3600);
+    }
+
+    function appendWsLog(text, colorClass = 'text-emerald-400') {
+      const box = document.getElementById('ws-log-box');
+      if (!box) return;
+      const now = new Date().toTimeString().split(' ')[0];
+      const line = document.createElement('div');
+      line.className = `${colorClass}`;
+      line.textContent = `[${now}] ${text}`;
+      box.prepend(line);
+    }
+
+    function clearWsLog() {
+      const box = document.getElementById('ws-log-box');
+      if (box) box.innerHTML = '';
+    }
+
+    function switchMainTab(tab) {
+      state.activeTab = tab;
+      ['checkout', 'invoice', 'admin', 'code'].forEach(t => {
+        const sec = document.getElementById(`tab-${t}`);
+        const nav = document.getElementById(`nav-${t}`);
+        if (sec) sec.classList.toggle('hidden', t !== tab);
+        if (nav) {
+          if (t === tab) {
+            nav.className = 'px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap bg-pink-600 text-white shadow';
+          } else {
+            nav.className = 'px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap text-slate-300 hover:text-white';
+          }
+        }
+      });
+    }
+
+    function toggleLanguage() {
+      state.lang = state.lang === 'bn' ? 'en' : 'bn';
+      renderCheckoutMethodUI();
+      showToast(state.lang === 'bn' ? 'বাংলা ভাষা চালু করা হয়েছে' : 'Switched to English instructions', 'info');
+    }
+
+    function changeOrderAmount(val) {
+      state.orderAmount = parseFloat(val) || 1250;
+      const formatted = state.orderAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById('checkout-amount-display').textContent = formatted;
+      document.getElementById('qr-amount-text').textContent = formatted;
+      document.getElementById('inst-amt-inline').textContent = formatted;
+      document.getElementById('card-btn-amt').textContent = formatted;
+      showToast(`Order payable updated to ৳ ${formatted}`, 'info');
+    }
+
+    function toggleCardSystem(enabled) {
+      state.cardEnabled = Boolean(enabled);
+      const qToggle = document.getElementById('quick-card-toggle');
+      const aToggle = document.getElementById('admin-card-toggle');
+      const aText = document.getElementById('admin-card-status-text');
+      const cardBtn = document.getElementById('tab-btn-card');
+
+      if (qToggle) qToggle.checked = state.cardEnabled;
+      if (aToggle) aToggle.checked = state.cardEnabled;
+      if (aText) {
+        aText.textContent = state.cardEnabled ? 'ON' : 'OFF';
+        aText.className = state.cardEnabled ? 'ml-2 font-bold text-emerald-400' : 'ml-2 font-bold text-rose-400';
+      }
+      if (cardBtn) {
+        cardBtn.classList.toggle('hidden', !state.cardEnabled);
+      }
+      if (!state.cardEnabled && state.selectedMethod === 'card') {
+        selectPaymentMethod('bkash');
+      }
+      showToast(`Card Payment System ${state.cardEnabled ? 'ENABLED' : 'DISABLED'} on Checkout`, 'info');
+    }
+
+    function getActiveSimForMethod(method) {
+      const sims = state.simPool.filter(s => s.provider === method);
+      if (!sims.length) return { number: '01711-889900', type: 'Personal', id: 1 };
+      return sims[state.activeSimIndex % sims.length];
+    }
+
+    function selectPaymentMethod(method) {
+      state.selectedMethod = method;
+      ['bkash', 'nagad', 'rocket', 'upay', 'card'].forEach(m => {
+        const btn = document.getElementById(`tab-btn-${m}`);
+        if (!btn) return;
+        if (m === method) {
+          btn.className = 'method-tab-btn flex flex-col items-center justify-center p-2.5 rounded-xl border-2 border-slate-900 bg-slate-200/80 transition shadow-sm scale-[1.02]';
+        } else {
+          btn.className = 'method-tab-btn flex flex-col items-center justify-center p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-slate-400 transition';
+        }
+      });
+
+      const mfsBody = document.getElementById('mfs-checkout-body');
+      const cardBody = document.getElementById('card-checkout-body');
+
+      if (method === 'card') {
+        mfsBody.classList.add('hidden');
+        cardBody.classList.remove('hidden');
+        document.getElementById('provider-logo-short').textContent = '💳';
+        document.getElementById('checkout-header-bar').className = 'bg-gradient-to-r from-indigo-600 to-slate-900 text-white p-5 transition-colors duration-300';
+        return;
+      }
+
+      mfsBody.classList.remove('hidden');
+      cardBody.classList.add('hidden');
+      renderCheckoutMethodUI();
+    }
+
+    function renderCheckoutMethodUI() {
+      const method = state.selectedMethod === 'card' ? 'bkash' : state.selectedMethod;
+      const meta = providerMeta[method] || providerMeta.bkash;
+      const sim = getActiveSimForMethod(method);
+      const formattedAmt = state.orderAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+      document.getElementById('provider-logo-short').textContent = meta.short;
+      document.getElementById('provider-logo-short').className = meta.textColor;
+      document.getElementById('checkout-header-bar').className = `bg-gradient-to-r ${meta.headerBg} text-white p-5 transition-colors duration-300`;
+      document.getElementById('btn-verify-submit').className = `w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r ${meta.btnBg} hover:opacity-95 text-white font-extrabold text-sm sm:text-base shadow-lg transition flex items-center justify-center gap-2`;
+
+      document.getElementById('active-sim-badge').textContent = `${meta.name} Send Money (${sim.type})`;
+      document.getElementById('active-sim-slot-label').textContent = `SIM #${sim.id} (Load: ${sim.load} active)`;
+      document.getElementById('active-merchant-number').textContent = sim.number;
+      document.getElementById('qr-provider-name').textContent = meta.name;
+      document.getElementById('qr-number-text').textContent = sim.number;
+      document.getElementById('inst-ussd').textContent = `Dial ${meta.ussd} or Open ${meta.name} App`;
+      document.getElementById('sim-btn-provider-label').textContent = meta.name;
+
+      const listEl = document.getElementById('inst-list');
+      if (state.lang === 'bn') {
+        listEl.innerHTML = `
+          <li>আপনার <strong>${meta.name} App</strong> এ যান অথবা <strong>${meta.ussd}</strong> ডায়াল করে <strong>Send Money</strong> সিলেক্ট করুন।</li>
+          <li>উপরে দেওয়া নাম্বারটি (<strong class="font-mono text-slate-900">${sim.number}</strong>) কপি করে প্রাপক নাম্বার হিসেবে দিন।</li>
+          <li>টাকার পরিমাণ <strong class="text-slate-900">৳ ${formattedAmt}</strong> লিখে আপনার পিন দিয়ে পেমেন্ট সম্পন্ন করুন।</li>
+          <li>পেমেন্ট শেষে প্রাপ্ত <strong>Transaction ID (TrxID)</strong> নিচের বক্সে লিখে <strong>Verify Payment</strong> বাটনে ক্লিক করুন।</li>
+        `;
+      } else {
+        listEl.innerHTML = `
+          <li>Open your <strong>${meta.name} App</strong> or dial <strong>${meta.ussd}</strong> and choose <strong>Send Money</strong>.</li>
+          <li>Enter the merchant number (<strong class="font-mono text-slate-900">${sim.number}</strong>) as the receiver.</li>
+          <li>Enter exact amount <strong class="text-slate-900">BDT ${formattedAmt}</strong> and confirm with your PIN.</li>
+          <li>Enter the <strong>Transaction ID (TrxID)</strong> below and click <strong>Verify Payment</strong>.</li>
+        `;
+      }
+    }
+
+    function rotateSimLoadBalance() {
+      state.activeSimIndex += 1;
+      renderCheckoutMethodUI();
+      const sim = getActiveSimForMethod(state.selectedMethod === 'card' ? 'bkash' : state.selectedMethod);
+      appendWsLog(`Multi-SIM Load Balancer rotated active receiver to ${sim.number} (${sim.type})`, 'text-sky-400');
+      showToast(`Load Balancer rotated to SIM: ${sim.number}`, 'info');
+    }
+
+    function toggleQrPreview() {
+      const qrBox = document.getElementById('checkout-qr-box');
+      qrBox.classList.toggle('hidden');
+    }
+
+    function copyTextSafe(text, label = 'Copied to clipboard!') {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(() => showToast(label, 'success')).catch(() => fallbackCopy(text, label));
+        } else {
+          fallbackCopy(text, label);
+        }
+      } catch (e) {
+        fallbackCopy(text, label);
+      }
+    }
+
+    function fallbackCopy(text, label) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (err) {}
+      ta.remove();
+      showToast(label, 'success');
+    }
+
+    function copyMerchantNumber() {
+      const num = document.getElementById('active-merchant-number').textContent.trim();
+      copyTextSafe(num.replace(/[^0-9]/g, ''), `Copied Number: ${num}`);
+    }
+
+    function showStatusBanner(html, styleType) {
+      const box = document.getElementById('checkout-status-box');
+      box.classList.remove('hidden');
+      const classes = {
+        success: 'bg-emerald-50 border-emerald-300 text-emerald-900',
+        error: 'bg-rose-50 border-rose-300 text-rose-900',
+        scanning: 'bg-sky-50 border-sky-300 text-sky-900'
+      };
+      box.className = `rounded-xl p-3.5 text-xs font-medium border ${classes[styleType] || classes.scanning}`;
+      box.innerHTML = html;
+    }
+
+    // =========================================================================
+    // 4-LAYER VERIFICATION & ANDROID SIMULATOR SCENARIOS
+    // =========================================================================
+    function generateRandomTrxId(prefix = 'BK') {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let out = prefix;
+      for (let i = 0; i < 8; i++) {
+        out += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return out;
+    }
+
+    // Scenario 1: Instant 0.4s Push Notification + SMS Reader
+    function simulateIncomingPhonePayment(mode = 'instant') {
+      const method = state.selectedMethod === 'card' ? 'bkash' : state.selectedMethod;
+      const meta = providerMeta[method];
+      const prefixMap = { bkash: 'BK', nagad: 'NG', rocket: 'RK', upay: 'UP' };
+      const trxId = generateRandomTrxId(prefixMap[method] || 'BK');
+      const sender = document.getElementById('input-sender-phone').value.trim() || '01812345678';
+      const amt = state.orderAmount;
+      const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+      const rawText = `You have received Tk ${amt.toFixed(2)} from ${sender}. Fee Tk 0.00. TrxID ${trxId} at ${nowStr}`;
+      document.getElementById('phone-raw-sms').textContent = `"${rawText}"`;
+      document.getElementById('parsed-amt').textContent = `৳ ${amt.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+      document.getElementById('parsed-sender').textContent = sender;
+      document.getElementById('parsed-trx').textContent = trxId;
+      document.getElementById('phone-last-source').textContent = `Push + SMS (${meta.senderId})`;
+
+      // Store in unused SMS pool & fill input box
+      state.unusedSmsPool.set(trxId, {
+        trxId,
+        amount: amt,
+        sender,
+        method,
+        layer: 'Push Notification (0.4s)'
+      });
+      document.getElementById('input-trx-id').value = trxId;
+
+      appendWsLog(`📲 [${meta.senderId}] Push Notification parsed -> TrxID: ${trxId}, Tk ${amt}`, 'text-emerald-400');
+      appendWsLog(`⚡ Reverb WebSocket pushed ${trxId} to Laravel Server in 0.4s`, 'text-sky-400');
+
+      if (mode === 'instant') {
+        submitCheckoutVerification();
+      }
+    }
+
+    // Scenario 2: SMS Late / Network Issue -> Statement Auto-Scanner via Accessibility Service
+    function simulateStatementAutoScanner() {
+      const method = state.selectedMethod === 'card' ? 'bkash' : state.selectedMethod;
+      const meta = providerMeta[method];
+      const trxId = generateRandomTrxId('STMT');
+      const sender = document.getElementById('input-sender-phone').value.trim() || '01812345678';
+      const amt = state.orderAmount;
+
+      document.getElementById('input-trx-id').value = trxId;
+      showStatusBanner(
+        `<div class="flex items-center gap-2 font-bold text-sky-800">
+           <span class="inline-block w-2.5 h-2.5 rounded-full bg-sky-600 animate-ping"></span>
+           <span>SMS delayed on SIM network! Triggering Android App Statement Auto-Scanner for TrxID <code class="font-mono">${trxId}</code>...</span>
+         </div>`,
+        'scanning'
+      );
+
+      appendWsLog(`⏳ TrxID ${trxId} not in SMS DB yet -> Broadcasting RequestStatementScanEvent`, 'text-amber-300');
+      showToast('SMS delayed! Scanning inside App Statement via Accessibility Service...', 'info');
+
+      setTimeout(() => {
+        const rawStmt = `[${meta.name} App Statement Scan] Send Money Received: Tk ${amt.toFixed(2)} | From: ${sender} | TrxID: ${trxId}`;
+        document.getElementById('phone-raw-sms').textContent = `"${rawStmt}"`;
+        document.getElementById('parsed-amt').textContent = `৳ ${amt.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+        document.getElementById('parsed-sender').textContent = sender;
+        document.getElementById('parsed-trx').textContent = trxId;
+        document.getElementById('phone-last-source').textContent = 'Statement Auto-Scanner';
+
+        state.unusedSmsPool.set(trxId, {
+          trxId,
+          amount: amt,
+          sender,
+          method,
+          layer: 'App Statement Auto-Scanner'
+        });
+
+        appendWsLog(`✅ Accessibility Statement Scanner found ${trxId} (Tk ${amt}) inside ${meta.name} App!`, 'text-emerald-400');
+        completeOrderVerification(trxId, method, sender, amt, 'App Statement Auto-Scanner');
+      }, 1100);
+    }
+
+    // Scenario 3: Double-TrxID Security Lock Test
+    function simulateDoubleSpendAttack() {
+      const usedTrx = 'TRX8811USED';
+      document.getElementById('input-trx-id').value = usedTrx;
+      submitCheckoutVerification();
+    }
+
+    // Scenario 4: Fake Sender SMS Attack Test
+    function simulateFakeSmsAttack() {
+      const fakeSender = '+8801700998877';
+      const fakeTrx = 'FAKE9911XX';
+      const rawFake = `You have received Tk ${state.orderAmount.toFixed(2)} from 01812345678. TrxID ${fakeTrx}`;
+      document.getElementById('phone-raw-sms').textContent = `[BLOCKED FAKE SMS from ${fakeSender}]: "${rawFake}"`;
+      document.getElementById('phone-last-source').textContent = 'REJECTED (Fake Sender)';
+
+      state.blockedCount += 1;
+      updateAdminKpis();
+      appendWsLog(`🚫 SECURITY BLOCK: Rejected SMS from ${fakeSender} (Not in official [bKash, NAGAD, 16216, Upay] whitelist)`, 'text-rose-400');
+      showStatusBanner(
+        `<strong>🚫 Fake Sender ID Blocked by Android App:</strong> Incoming SMS from personal number <code class="font-mono">${fakeSender}</code> was rejected. Only official Sender IDs (<code class="font-mono">bKash, NAGAD, 16216, Upay</code>) are accepted.`,
+        'error'
+      );
+      showToast('Blocked Fake SMS from personal number +8801700998877!', 'error');
+    }
+
+    // Customer Checkout Submit Verification
+    function submitCheckoutVerification() {
+      const trxInput = document.getElementById('input-trx-id');
+      const rawTrx = (trxInput.value || '').trim().toUpperCase();
+      const sender = document.getElementById('input-sender-phone').value.trim() || '01812345678';
+      const method = state.selectedMethod === 'card' ? 'bkash' : state.selectedMethod;
+
+      if (!rawTrx || rawTrx.length < 5) {
+        showStatusBanner('<strong>⚠️ TrxID Required:</strong> অনুগ্রহ করে আপনার সঠিক Transaction ID (TrxID) লিখুন।', 'error');
+        showToast('Please enter a valid Transaction ID (TrxID)', 'warning');
+        return;
+      }
+
+      // 3-Layer Anti-Double-Spend Check
+      if (state.usedTrxIds.has(rawTrx)) {
+        state.blockedCount += 1;
+        updateAdminKpis();
+        appendWsLog(`🔒 DOUBLE-SPEND BLOCKED: TrxID ${rawTrx} rejected by Redis Atomic Lock + UNIQUE Index`, 'text-rose-400');
+        showStatusBanner(
+          `<strong>🔒 Security Alert — Transaction ID Already Used!</strong><br/>
+           TrxID <code class="font-mono font-bold">${rawTrx}</code> is permanently locked in the database (Redis Atomic Lock + MySQL UNIQUE Index). One TrxID cannot be used twice.`,
+          'error'
+        );
+        showToast(`Blocked! TrxID ${rawTrx} has already been used.`, 'error');
+        return;
+      }
+
+      // Check if already received in unusedSmsPool
+      if (state.unusedSmsPool.has(rawTrx)) {
+        const item = state.unusedSmsPool.get(rawTrx);
+        state.unusedSmsPool.delete(rawTrx);
+        completeOrderVerification(rawTrx, item.method, item.sender, item.amount, item.layer);
+        return;
+      }
+
+      // If user typed a custom new TrxID manually, demonstrate instant Statement Auto-Scanner match
+      showStatusBanner(
+        `<div class="flex items-center gap-2 font-bold text-sky-800">
+           <span class="inline-block w-2.5 h-2.5 rounded-full bg-sky-600 animate-ping"></span>
+           <span>Checking Redis Cache &amp; scanning ${providerMeta[method].name} Statement for TrxID <code class="font-mono">${rawTrx}</code>...</span>
+         </div>`,
+        'scanning'
+      );
+      appendWsLog(`🔍 Verifying manual TrxID ${rawTrx} via WebSocket tunnel...`, 'text-sky-400');
+
+      setTimeout(() => {
+        completeOrderVerification(rawTrx, method, sender, state.orderAmount, 'WebSocket Instant Match (0.5s)');
+      }, 650);
+    }
+
+    function simulateCardInstantPayment() {
+      const trxId = generateRandomTrxId('CARD');
+      completeOrderVerification(trxId, 'card', '4532••••8891', state.orderAmount, '3DS Card Gateway');
+    }
+
+    function completeOrderVerification(trxId, method, sender, amount, layerName) {
+      state.usedTrxIds.add(trxId);
+      const sim = method === 'card' ? { number: 'VISA-3DS-MERCHANT' } : getActiveSimForMethod(method);
+      const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const invId = 'INV-2026-' + Math.floor(1000 + Math.random() * 8999);
+      const ordId = 'ORD-2026-' + Math.floor(1000 + Math.random() * 8999);
+
+      state.invoiceId = invId;
+      state.orderId = ordId;
+      state.totalRevenue += amount;
+      state.verifiedCount += 1;
+
+      const record = {
+        invoiceId: invId,
+        orderId: ordId,
+        method,
+        sim: sim.number,
+        sender,
+        trxId,
+        amount,
+        layer: layerName,
+        status: 'paid',
+        time: nowStr
+      };
+      state.transactions.unshift(record);
+
+      showStatusBanner(
+        `<div class="flex items-center justify-between">
+           <div>
+             <strong>✅ পেমেন্ট সফলভাবে ভেরিফাই হয়েছে (Payment Verified in 0.4s)!</strong><br/>
+             TrxID <code class="font-mono font-bold">${trxId}</code> bound to Invoice <code class="font-mono font-bold">${invId}</code>.
+           </div>
+           <button type="button" onclick="switchMainTab('invoice')" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs">
+             View Receipt →
+           </button>
+         </div>`,
+        'success'
+      );
+
+      populateInvoiceReceipt(record);
+      renderAdminTable();
+      updateAdminKpis();
+      showToast(`Payment Verified! TrxID: ${trxId} — Opening Auto-Invoice...`, 'success');
+
+      setTimeout(() => {
+        switchMainTab('invoice');
+      }, 900);
+    }
+
+    function populateInvoiceReceipt(rec) {
+      const formatted = rec.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById('inv-doc-id').textContent = rec.invoiceId;
+      document.getElementById('inv-doc-order').textContent = rec.orderId;
+      document.getElementById('inv-doc-trx').textContent = rec.trxId;
+      document.getElementById('inv-doc-method').textContent = `${rec.method.toUpperCase()} (Verified)`;
+      document.getElementById('inv-doc-time').textContent = rec.time;
+      document.getElementById('inv-doc-sender').textContent = rec.sender;
+      document.getElementById('inv-doc-sim').textContent = rec.sim;
+      document.getElementById('inv-doc-engine').textContent = rec.layer;
+      document.getElementById('inv-doc-subtotal').textContent = formatted;
+      document.getElementById('inv-doc-total').textContent = formatted;
+      document.getElementById('inv-doc-lock-id').textContent = rec.invoiceId;
+    }
+
+    function downloadStandaloneInvoiceReceipt() {
+      const invId = document.getElementById('inv-doc-id').textContent;
+      const trxId = document.getElementById('inv-doc-trx').textContent;
+      const method = document.getElementById('inv-doc-method').textContent;
+      const time = document.getElementById('inv-doc-time').textContent;
+      const total = document.getElementById('inv-doc-total').textContent;
+      const engine = document.getElementById('inv-doc-engine').textContent;
+
+      const htmlDoc = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Receipt-${invId}</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 40px; color: #0f172a; }
+  .card { max-width: 680px; margin: 0 auto; border: 2px solid #cbd5e1; border-radius: 16px; padding: 32px; position: relative; }
+  .stamp { position: absolute; top: 24px; right: 24px; border: 3px solid #16a34a; color: #16a34a; padding: 6px 14px; font-weight: bold; border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  th, td { padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+  .total { font-size: 24px; font-weight: bold; color: #16a34a; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="stamp">PAID & VERIFIED</div>
+    <h2>TechBazar BD — Official Payment Receipt</h2>
+    <p>Verified via MyPay BD Non-Custodial Gateway</p>
+    <table>
+      <tr><th>Invoice ID</th><td><strong>${invId}</strong></td></tr>
+      <tr><th>Transaction ID (TrxID)</th><td><strong>${trxId}</strong></td></tr>
+      <tr><th>Payment Method</th><td>${method}</td></tr>
+      <tr><th>Verification Engine</th><td>${engine}</td></tr>
+      <tr><th>Paid Timestamp</th><td>${time}</td></tr>
+      <tr><th>Total Paid</th><td class="total">BDT ${total}</td></tr>
+    </table>
+  </div>
+</body>
+</html>`;
+
+      const blob = new Blob([htmlDoc], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Invoice-${invId}.html`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast(`Downloaded Receipt: Invoice-${invId}.html`, 'success');
+    }
+
+    function startFreshTestOrder() {
+      const nextId = 'INV-2026-' + Math.floor(1000 + Math.random() * 8999);
+      document.getElementById('checkout-invoice-id').textContent = nextId;
+      document.getElementById('input-trx-id').value = '';
+      document.getElementById('checkout-status-box').classList.add('hidden');
+      switchMainTab('checkout');
+      showToast(`Ready for new payment on ${nextId}`, 'info');
+    }
+
+    // =========================================================================
+    // ADMIN PANEL: 200-USER CONCURRENT STRESS TEST, MULTI-SIM & 1-CLICK APPROVE
+    // =========================================================================
+    function updateAdminKpis() {
+      document.getElementById('kpi-total-amount').textContent = state.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 });
+      document.getElementById('kpi-verified-count').textContent = state.verifiedCount;
+      document.getElementById('kpi-sim-count').textContent = `${state.simPool.length} SIMs Online`;
+      document.getElementById('kpi-blocked-count').textContent = `${state.blockedCount} Blocked`;
+    }
+
+    function renderSimPool() {
+      const grid = document.getElementById('sim-pool-grid');
+      if (!grid) return;
+      grid.innerHTML = state.simPool.map(sim => `
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-extrabold uppercase text-white">${sim.provider}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300">${sim.type}</span>
+            </div>
+            <div class="text-sm font-mono font-bold text-emerald-400 mt-1">${sim.number}</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">Processed: ${sim.processed} txns • Active Load: ${sim.load}</div>
+          </div>
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+        </div>
+      `).join('');
+    }
+
+    function addSimToPool() {
+      const provider = document.getElementById('new-sim-provider').value;
+      const numInput = document.getElementById('new-sim-number');
+      const num = numInput.value.trim();
+      if (!num || num.length < 11) {
+        showToast('Enter a valid 11-digit SIM number (e.g. 01799-112233)', 'warning');
+        return;
+      }
+      state.simPool.push({
+        id: state.simPool.length + 1,
+        provider,
+        type: 'Personal',
+        number: num,
+        load: 0,
+        processed: 0
+      });
+      numInput.value = '';
+      renderSimPool();
+      updateAdminKpis();
+      renderCheckoutMethodUI();
+      showToast(`Added ${provider.toUpperCase()} SIM ${num} to Load Balancer Pool`, 'success');
+    }
+
+    function renderAdminTable() {
+      const tbody = document.getElementById('admin-trx-tbody');
+      if (!tbody) return;
+      tbody.innerHTML = state.transactions.map(t => {
+        const badge = t.status === 'paid'
+          ? '<span class="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 font-bold">PAID</span>'
+          : '<span class="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 font-bold">PENDING</span>';
+
+        const actionBtn = t.status === 'paid'
+          ? `<button type="button" onclick="openInvoiceById('${t.invoiceId}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold">🧾 Receipt</button>`
+          : `<button type="button" onclick="manualApproveInvoice('${t.invoiceId}')" class="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-extrabold">✓ 1-Click Approve</button>`;
+
+        return `
+          <tr class="hover:bg-slate-800/40 transition">
+            <td class="py-3 px-3 font-mono font-bold text-white">${t.invoiceId}</td>
+            <td class="py-3 px-3 uppercase font-semibold text-slate-300">${t.method} <span class="text-slate-500 font-mono text-[11px]">(${t.sim})</span></td>
+            <td class="py-3 px-3 font-mono font-bold text-amber-300">${t.trxId}</td>
+            <td class="py-3 px-3 font-mono font-bold text-emerald-400">৳ ${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+            <td class="py-3 px-3 text-slate-300">${t.layer}</td>
+            <td class="py-3 px-3">${badge}</td>
+            <td class="py-3 px-3 text-right">${actionBtn}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function openInvoiceById(invId) {
+      const rec = state.transactions.find(t => t.invoiceId === invId);
+      if (rec) {
+        populateInvoiceReceipt(rec);
+        switchMainTab('invoice');
+      }
+    }
+
+    function createPendingManualOrder() {
+      const invId = 'INV-2026-' + Math.floor(1000 + Math.random() * 8999);
+      const trxId = generateRandomTrxId('WAIT');
+      state.transactions.unshift({
+        invoiceId: invId,
+        orderId: 'ORD-' + invId.split('-')[2],
+        method: 'bkash',
+        sim: '01711-889900',
+        sender: '01712998811',
+        trxId,
+        amount: 1250,
+        layer: 'Waiting Manual / Delayed SMS',
+        status: 'pending',
+        time: new Date().toISOString().replace('T', ' ').substring(0, 19)
+      });
+      renderAdminTable();
+      showToast(`Created Pending Invoice ${invId} — Click "1-Click Approve" in the table!`, 'info');
+    }
+
+    function manualApproveInvoice(invId) {
+      const rec = state.transactions.find(t => t.invoiceId === invId);
+      if (!rec) return;
+      rec.status = 'paid';
+      rec.layer = '1-Click Manual Admin';
+      state.usedTrxIds.add(rec.trxId);
+      state.totalRevenue += rec.amount;
+      state.verifiedCount += 1;
+      renderAdminTable();
+      updateAdminKpis();
+      populateInvoiceReceipt(rec);
+      showToast(`Invoice ${invId} approved with 1-Click!`, 'success');
+    }
+
+    let stressTimer = null;
+    function runConcurrentStressTest() {
+      if (stressTimer) clearInterval(stressTimer);
+      const totalTarget = 150;
+      let current = 0;
+      let dupesBlocked = 0;
+
+      const bar = document.getElementById('stress-progress-bar');
+      const pctLabel = document.getElementById('stress-progress-pct');
+      const statusLabel = document.getElementById('stress-status-label');
+      const verNum = document.getElementById('stress-verified-num');
+      const dupeNum = document.getElementById('stress-dupe-num');
+
+      statusLabel.textContent = 'Processing 150 concurrent requests via Redis Queue + Atomic Lock...';
+
+      stressTimer = setInterval(() => {
+        const step = Math.min(15, totalTarget - current);
+        current += step;
+        dupesBlocked += Math.floor(Math.random() * 2) + 1;
+
+        const pct = Math.round((current / totalTarget) * 100);
+        bar.style.width = `${pct}%`;
+        pctLabel.textContent = `${current} / ${totalTarget}`;
+        verNum.textContent = current;
+        dupeNum.textContent = dupesBlocked;
+
+        if (current >= totalTarget) {
+          clearInterval(stressTimer);
+          stressTimer = null;
+          state.verifiedCount += totalTarget;
+          state.blockedCount += dupesBlocked;
+          state.totalRevenue += totalTarget * 500;
+          updateAdminKpis();
+          statusLabel.textContent = '✅ 150/150 Concurrent Payments Verified in 0.38s avg (0 Server Jam, 0 Double-Spend)!';
+          showToast('150 concurrent payments verified via Redis Queue & Multi-SIM rotation!', 'success');
+        }
+      }, 90);
+    }
+
+    // =========================================================================
+    // SOURCE CODE VIEWER
+    // =========================================================================
+    function selectCodeTab(key) {
+      state.currentCodeKey = key;
+      ['migration', 'controller', 'kotlin_sms', 'kotlin_scanner', 'vps'].forEach(k => {
+        const btn = document.getElementById(`code-btn-${k}`);
+        if (!btn) return;
+        if (k === key) {
+          btn.className = 'code-tab-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-pink-600 text-white';
+        } else {
+          btn.className = 'code-tab-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-300 hover:text-white';
+        }
+      });
+      const viewer = document.getElementById('code-viewer-content');
+      if (viewer) viewer.textContent = codeFiles[key] || '';
+    }
+
+    function copyCurrentCodeFile() {
+      const code = codeFiles[state.currentCodeKey] || '';
+      copyTextSafe(code, 'Copied full source code file to clipboard!');
+    }
+
+    // =========================================================================
+    // INITIALIZATION & TIMERS
+    // =========================================================================
+    window.onload = function () {
+      renderCheckoutMethodUI();
+      renderSimPool();
+      renderAdminTable();
+      updateAdminKpis();
+      selectCodeTab('migration');
+      appendWsLog('Reverb WebSocket Server connected on wss://pay.yourdomain.com:8080', 'text-emerald-400');
+      appendWsLog('Android Kotlin ForegroundService online (Battery: 94%, Ping: 9ms)', 'text-sky-400');
+
+      setInterval(() => {
+        if (state.countdownSeconds > 0) state.countdownSeconds -= 1;
+        const m = String(Math.floor(state.countdownSeconds / 60)).padStart(2, '0');
+        const s = String(state.countdownSeconds % 60).padStart(2, '0');
+        const timerEl = document.getElementById('checkout-timer');
+        if (timerEl) timerEl.textContent = `${m}:${s}`;
+
+        const ping = 7 + Math.floor(Math.random() * 6);
+        const pingEl = document.getElementById('header-ping');
+        if (pingEl) pingEl.textContent = `${ping}ms`;
+      }, 1000);
+    };
+  </script>
+</body>
+</html>

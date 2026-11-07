@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#090D16"
+    android:padding="18dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="MyPay BD — Personal Gateway"
+            android:textColor="#FFFFFF"
+            android:textSize="21sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/txtServiceStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="STATUS: READY TO CONNECT"
+            android:textColor="#10B981"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/txtQueueCounters"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="14dp"
+            android:background="#111827"
+            android:padding="12dp"
+            android:text="Synced: 0 | Offline Queue: 0 | Last TrxID: None"
+            android:textColor="#E2E8F0"
+            android:textSize="12sp" />
+
+        <EditText
+            android:id="@+id/edtWsUrl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="WebSocket URL (wss://pay.yourdomain.com:8080/app/key)"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#64748B"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/edtServerUrl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="Webhook API URL (https://pay.yourdomain.com/api/device/webhook)"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#64748B"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/edtSecretToken"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="API Secret Token"
+            android:textColor="#10B981"
+            android:textColorHint="#64748B"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/edtSimNumber"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="Active SIM Number (e.g. 01711-889900)"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#64748B"
+            android:textSize="13sp" />
+
+        <Button
+            android:id="@+id/btnGrantSms"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="1. Grant SMS Permission (Layer 2)" />
+
+        <Button
+            android:id="@+id/btnGrantPushListener"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="2. Enable Push Notification Reader (0.4s Layer 1)" />
+
+        <Button
+            android:id="@+id/btnGrantStatementScanner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="3. Enable Statement Auto-Scanner (Layer 3)" />
+
+        <Button
+            android:id="@+id/btnIgnoreBattery"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="4. Ignore Battery Optimization (24/7 Keep-Alive)" />
+
+        <Button
+            android:id="@+id/btnStartGateway"
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:layout_marginTop="14dp"
+            android:backgroundTint="#E11D48"
+            android:text="⚡ START 24/7 REAL-TIME GATEWAY"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnTestWebhook"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="#0284C7"
+            android:text="📲 SEND TEST BKASH TRANSACTION TO SERVER"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/txtLiveLog"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:background="#111827"
+            android:fontFamily="monospace"
+            android:padding="12dp"
+            android:text="[System Ready] Waiting for bKash, Nagad, Rocket, or Upay notifications..."
+            android:textColor="#34D399"
+            android:textSize="11sp" />
+
+    </LinearLayout>
+</ScrollView>

@@ -1,0 +1,2 @@
+-keep class com.payguard.bd.** { *; }
+-dontwarn okhttp3.**
